@@ -24,9 +24,8 @@ Env = namedtuple("Env",
               "providers", "pubs_providers",
               "clients", "pubs_clients"])
 
-dbManager = DatabaseManager('test.db')
 
-def loopix_mixes():
+def loopix_mixes(dbManager):
     sec_params = SphinxParams(header_len=1024)
 
     dbManager.create_mixnodes_table('Mixnodes')
@@ -43,7 +42,7 @@ def loopix_mixes():
     pubs_mixes = [Mix(m.name, m.port, m.host, m.pubk, m.group) for m in mixes]
     return mixes, pubs_mixes
 
-def loopix_providers():
+def loopix_providers(dbManager):
     sec_params = SphinxParams(header_len=1024)
 
     dbManager.create_providers_table('Providers')
@@ -60,8 +59,7 @@ def loopix_providers():
     pubs_providers = [Provider(p.name, p.port, p.host, p.pubk) for p in providers]
     return providers, pubs_providers
 
-def loopix_clients(pubs_providers, pubs_mixes):
-
+def loopix_clients(dbManager, pubs_providers, pubs_mixes):
     sec_params = SphinxParams(header_len=1024)
 
     dbManager.create_users_table('Users')
@@ -84,9 +82,10 @@ def loopix_clients(pubs_providers, pubs_mixes):
 
 @pytest.fixture
 def env():
-    mixes, pubs_mixes = loopix_mixes()
-    providers, pubs_providers = loopix_providers()
-    clients, pubs_clients = loopix_clients(pubs_providers, pubs_mixes)
+    dbManager = DatabaseManager('test.db')
+    mixes, pubs_mixes = loopix_mixes(dbManager)
+    providers, pubs_providers = loopix_providers(dbManager)
+    clients, pubs_clients = loopix_clients(dbManager, pubs_providers, pubs_mixes)
 
     return Env(mixes, pubs_mixes,
                providers, pubs_providers,
