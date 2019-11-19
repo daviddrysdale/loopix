@@ -33,10 +33,10 @@ class ClientCore(object):
 
     def process_packet(self, packet):
         log.msg("[%s] > Processing packet." % self.name)
-        tag, routing, new_header, new_body = self.packer.decrypt_sphinx_packet(packet, self.privk)
+        tag, routing, new_header, new_body, mac = self.packer.decrypt_sphinx_packet(packet, self.privk)
         routing_flag, meta_info = routing[0], routing[1:]
         if routing_flag == Dest_flag:
-            dest, message = self.packer.handle_received_forward(new_body)
+            dest, message = self.packer.handle_received_forward(new_body, mac)
             if dest == [self.host, self.port, self.name]:
                 return "NEW", message
             else:

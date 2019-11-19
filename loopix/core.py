@@ -71,9 +71,9 @@ class SphinxPacker(object):
 
     def decrypt_sphinx_packet(self, packet, key):
         header, body = packet
-        tag, info, (new_header, new_body) = sphinx_process(self.sec_params, key, header, body)
+        tag, info, (new_header, new_body), mac = sphinx_process(self.sec_params, key, header, body)
         routing = PFdecode(self.sec_params, info)
-        return tag, routing, new_header, new_body
+        return tag, routing, new_header, new_body, mac
 
-    def handle_received_forward(self, packet):
-        return receive_forward(self.sec_params, packet)
+    def handle_received_forward(self, packet, mac):
+        return receive_forward(self.sec_params, mac, packet)

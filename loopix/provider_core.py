@@ -14,7 +14,7 @@ class ProviderCore(MixCore):
         self.pubk = pubk
 
     def process_packet(self, packet):
-        tag, routing, new_header, new_body = self.packer.decrypt_sphinx_packet(packet, self.privk)
+        tag, routing, new_header, new_body, mac = self.packer.decrypt_sphinx_packet(packet, self.privk)
         routing_flag, meta_info = routing[0], routing[1:]
         if routing_flag == Relay_flag:
             next_addr, drop_flag, type_flag, delay, next_name = meta_info[0]
@@ -23,7 +23,7 @@ class ProviderCore(MixCore):
             else:
                 return "ROUT", [delay, new_header, new_body, next_addr, next_name]
         elif routing_flag == Dest_flag:
-            dest, message = self.packer.handle_received_forward(new_body)
+            dest, message = self.packer.handle_received_forward(new_body, mac)
             if dest == [self.host, self.port, self.name]:
                 if message.startswith('HT'):
                     return "LOOP", [message]
