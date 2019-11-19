@@ -1,0 +1,7 @@
+*.pyc
+.coverage
+.eggs
+.tox
+env/
+loopix.egg-info
+testdb.db
