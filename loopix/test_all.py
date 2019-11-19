@@ -26,7 +26,6 @@ Env = namedtuple("Env",
 
 dbManager = DatabaseManager('test.db')
 
-@pytest.fixture
 def loopix_mixes():
     sec_params = SphinxParams(header_len=1024)
 
@@ -44,7 +43,6 @@ def loopix_mixes():
     pubs_mixes = [Mix(m.name, m.port, m.host, m.pubk, m.group) for m in mixes]
     return mixes, pubs_mixes
 
-@pytest.fixture
 def loopix_providers():
     sec_params = SphinxParams(header_len=1024)
 
@@ -62,7 +60,6 @@ def loopix_providers():
     pubs_providers = [Provider(p.name, p.port, p.host, p.pubk) for p in providers]
     return providers, pubs_providers
 
-@pytest.fixture
 def loopix_clients(pubs_providers, pubs_mixes):
 
     sec_params = SphinxParams(header_len=1024)
@@ -86,7 +83,7 @@ def loopix_clients(pubs_providers, pubs_mixes):
     return clients, pubs_clients
 
 @pytest.fixture
-def generate_env():
+def env():
     mixes, pubs_mixes = loopix_mixes()
     providers, pubs_providers = loopix_providers()
     clients, pubs_clients = loopix_clients(pubs_providers, pubs_mixes)
@@ -95,9 +92,7 @@ def generate_env():
                providers, pubs_providers,
                clients, pubs_clients)
 
-env = generate_env()
-
-def test_client_startProtocol():
+def test_client_startProtocol(env):
     alice = env.clients[0]
     alice.startProtocol()
     pkt, addr = alice.transport.written[0]
@@ -110,7 +105,7 @@ def test_client_startProtocol():
     pkt, addr = alice.transport.written[1]
     assert pkt == petlib.pack.encode(['PULL', alice.name])
 
-def test_client_send_loop_message():
+def test_client_send_loop_message(env):
     alice = env.clients[0]
     alice.send_loop_message()
     packet, addr = alice.transport.written[-1]
@@ -131,7 +126,7 @@ def client_process_message(packet, mixes, provider):
             delay, header, body, next_addr, next_name = new_packet
     return header, body
 
-def test_client_make_loop_stream():
+def test_client_make_loop_stream(env):
     alice = env.clients[0]
     alice.transport.written = []
     alice.reactor = task.Clock()
@@ -143,7 +138,7 @@ def test_client_make_loop_stream():
     for c in calls:
         assert c.func == alice.make_loop_stream
 
-def test_client_create_drop_message():
+def test_client_create_drop_message(env):
     alice = env.clients[0]
     alice.transport.written = []
     friend = env.pubs_clients[1]
@@ -166,7 +161,7 @@ def client_process_drop_message(packet, mixes, providers):
             return False
     return True
 
-def test_client_make_drop_stream():
+def test_client_make_drop_stream(env):
     alice = env.clients[0]
     alice.transport.written = []
     alice.reactor = task.Clock()
@@ -179,7 +174,7 @@ def test_client_make_drop_stream():
     for c in calls:
         assert c.func == alice.make_drop_stream
 
-def test_client_subscribe():
+def test_client_subscribe(env):
     alice = env.clients[0]
     alice.transport.written = []
     alice.subscribe_to_provider()
@@ -187,20 +182,20 @@ def test_client_subscribe():
     assert petlib.pack.decode(packet) == ['SUBSCRIBE'] + [alice.name, alice.host, alice.port]
     assert addr == (alice.provider.host, alice.provider.port)
 
-def test_client_get_and_addCallback():
+def test_client_get_and_addCallback(env):
     alice = env.clients[0]
     alice.process_queue.put(('TestPacket', ('1.2.3.4', 1111)))
     alice.get_and_addCallback(alice.handle_packet)
     assert any(isinstance(x, defer.Deferred) for x in alice.process_queue.consumers)
 
-def test_client_send():
+def test_client_send(env):
     alice = env.clients[0]
     alice.send('Hello world')
     packet, addr = alice.transport.written[-1]
     assert petlib.pack.decode(packet) == 'Hello world'
     assert addr == (alice.provider.host, alice.provider.port)
 
-def test_client_schedule_next_call():
+def test_client_schedule_next_call(env):
     alice = env.clients[2]
     alice.reactor = task.Clock()
     def tmp_method():
@@ -212,7 +207,7 @@ def test_client_schedule_next_call():
     assert petlib.pack.decode(packet) == 'Test'
     assert addr == (alice.provider.host, alice.provider.port)
 
-def test_client_make_real_stream():
+def test_client_make_real_stream(env):
     alice = env.clients[0]
     alice.transport.written = []
     alice.reactor = task.Clock()
@@ -236,7 +231,7 @@ def test_client_make_real_stream():
     assert petlib.pack.decode(packet) == 'ABCDefgHIJKlmnOPRstUWxyz'
     assert addr == (alice.provider.host, alice.provider.port)
 
-def test_client_construct_full_path():
+def test_client_construct_full_path(env):
     client = env.clients[0]
     receiver = env.pubs_clients[1]
     path = client.construct_full_path(receiver)
@@ -248,7 +243,7 @@ def test_client_construct_full_path():
     assert path[4] == receiver.provider
     assert path[5] == receiver
 
-def test_client_get_network_info():
+def test_client_get_network_info(env):
     alice = env.clients[0]
     alice.DATABASE_NAME = 'test.db'
     alice.get_network_info()
@@ -257,7 +252,7 @@ def test_client_get_network_info():
     assert alice.pubs_providers == env.pubs_providers
     assert alice.befriended_clients == env.pubs_clients
 
-def test_client_retrieve_messages():
+def test_client_retrieve_messages(env):
     alice = env.clients[1]
     alice.reactor = task.Clock()
     alice.transport.written = []
@@ -267,14 +262,14 @@ def test_client_retrieve_messages():
     assert petlib.pack.decode(message) == ['PULL', alice.name]
     assert addr == (alice.provider.host, alice.provider.port)
 
-def test_client_datagramReceived():
+def test_client_datagramReceived(env):
     alice = env.clients[1]
     test_packet = '123456789'
     alice.datagramReceived(test_packet, ('1.2.3.4', 1111))
     insert_time, stored_packet = alice.process_queue.queue.pop()
     assert test_packet == stored_packet
 
-def test_client_handle_packet():
+def test_client_handle_packet(env):
     alice = env.clients[1]
     provider = [p for p in env.providers if p.name == alice.provider.name].pop()
 
@@ -285,7 +280,7 @@ def test_client_handle_packet():
 
 #===============================================================================
 
-def test_mix_get_network_info():
+def test_mix_get_network_info(env):
     mix = env.mixes[0]
     mix.DATABASE_NAME = 'test.db'
     mix.get_network_info()
@@ -302,17 +297,17 @@ def test_mix_get_network_info():
     other_providers = [p for p in env.pubs_providers if provider.name != p.name]
     assert provider.pubs_providers == other_providers
 
-def test_mix_register_mixes():
+def test_mix_register_mixes(env):
     [mix.register_mixes(env.pubs_mixes) for mix in env.mixes]
     mix = env.mixes[0]
     assert mix.pubs_mixes == group_layered_topology(env.pubs_mixes)
 
-def test_mix_register_providers():
+def test_mix_register_providers(env):
     [mix.register_providers(env.pubs_providers) for mix in env.mixes]
     mix = env.mixes[0]
     assert mix.pubs_providers == env.pubs_providers
 
-def test_mix_make_loop_stream():
+def test_mix_make_loop_stream(env):
     mix = env.mixes[0]
     mix.transport.written = []
     mix.reactor = task.Clock()
@@ -327,7 +322,7 @@ def test_mix_make_loop_stream():
     for c in calls:
         assert c.func == mix.make_loop_stream
 
-def test_mix_send_loop_message():
+def test_mix_send_loop_message(env):
     mix = env.mixes[0]
     mix.transport.written = []
     path = [m for m in env.pubs_mixes if m.name != mix.name]
@@ -343,7 +338,7 @@ def test_mix_send_loop_message():
     assert flag == 'LOOP'
     assert packet[:2] == 'HT'
 
-def test_mix_schedule_next_call():
+def test_mix_schedule_next_call(env):
     mix = env.mixes[1]
     mix.reactor = task.Clock()
     mix.transport.written = []
@@ -357,7 +352,7 @@ def test_mix_schedule_next_call():
     assert petlib.pack.decode(packet) == 'Test'
     assert addr == ('1.1.1.1', 1111)
 
-def test_mix_send_or_delay():
+def test_mix_send_or_delay(env):
     mix = env.mixes[0]
     mix.reactor = task.Clock()
     mix.transport.written = []
@@ -373,12 +368,12 @@ def test_mix_send_or_delay():
     assert petlib.pack.decode(packet) == 'Hello world'
     assert addr == ('1.1.1.2', 1112)
 
-def test_mix_send():
+def test_mix_send(env):
     mix = env.mixes[0]
     mix.transport.written = []
     mix.send('Hello world', ('1.1.1.2', 1112))
 
-def test_mix_construct_full_path():
+def test_mix_construct_full_path(env):
     mix = env.mixes[0]
     path = mix.generate_random_path()
     assert path[0] == env.pubs_mixes[1]
@@ -397,14 +392,14 @@ def test_mix_construct_full_path():
     assert path[1] == env.pubs_mixes[0]
     assert path[2] == env.pubs_mixes[1]
 
-def test_mix_datagramReceived():
+def test_mix_datagramReceived(env):
     mix = env.mixes[0]
     test_packet = '123456789'
     mix.datagramReceived(test_packet, ('1.2.3.4', 1111))
     insert_time, stored_packet = mix.process_queue.queue.pop()
     assert test_packet == stored_packet
 
-def test_mix_get_and_addCallback():
+def test_mix_get_and_addCallback(env):
     mix = env.mixes[0]
     mix.process_queue.put(('TestPacket', ('1.2.3.4', 1111)))
     mix.get_and_addCallback(mix.handle_packet)
@@ -412,13 +407,13 @@ def test_mix_get_and_addCallback():
 
 #===============================================================================
 
-def test_provider_subscribe_client():
+def test_provider_subscribe_client(env):
     provider = env.providers[0]
     client = env.pubs_clients[0]
     provider.subscribe_client([client.name, client.host, client.port])
     assert provider.clients == {client.name : (client.host, client.port)}
 
-def test_provider_is_assigned_client():
+def test_provider_is_assigned_client(env):
     provider = env.providers[0]
 
     subs_client = env.clients[0]
@@ -428,14 +423,14 @@ def test_provider_is_assigned_client():
     non_subs_client = env.clients[1]
     assert not provider.is_assigned_client(non_subs_client.name)
 
-def test_provider_put_into_storage():
+def test_provider_put_into_storage(env):
     provider = env.providers[0]
     subs_client = env.clients[0]
 
     provider.put_into_storage(subs_client.name, 'Hello world')
     assert 'Hello world' in provider.storage_inbox[subs_client.name]
 
-def test_provider_pull_messages():
+def test_provider_pull_messages(env):
     provider = env.providers[0]
     subs_client = env.clients[0]
 
@@ -454,7 +449,7 @@ def test_provider_pull_messages():
     assert len(pulled_messages) == provider.config_params.MAX_RETRIEVE
     assert set(stored_messages) < set(pulled_messages)
 
-def test_client_provider_retrieve():
+def test_client_provider_retrieve(env):
     import itertools
 
     provider = env.providers[0]
@@ -484,26 +479,26 @@ def test_client_provider_retrieve():
         assert subs_client.read_packet(p) == None
 
 
-def test_provider_generate_dummy_messages():
+def test_provider_generate_dummy_messages(env):
     provider = env.providers[0]
     dummies = provider.generate_dummy_messages(20)
     assert len(dummies) == 20
 
-def test_provider_construct_path():
+def test_provider_construct_path(env):
     provider = env.providers[0]
     path = provider.generate_random_path()
     assert path[0] == env.pubs_mixes[0]
     assert path[1] == env.pubs_mixes[1]
     assert path[2] == env.pubs_mixes[2]
 
-def test_provider_datagramReceived():
+def test_provider_datagramReceived(env):
     provider = env.providers[0]
     test_packet = '123456789'
     provider.datagramReceived(test_packet, ('1.2.3.4', 1111))
     insert_time, stored_packet = provider.process_queue.queue.pop()
     assert test_packet == stored_packet
 
-def test_provider_get_clients_messages():
+def test_provider_get_clients_messages(env):
     provider = env.providers[0]
     subs_client = env.clients[0]
 
@@ -530,7 +525,7 @@ def test_provider_get_clients_messages():
     assert msgs == test_set[:10]
     assert provider.storage_inbox[subs_client.name] == []
 
-def test_client_provider_sending():
+def test_client_provider_sending(env):
     sender, recipient = random.sample(env.clients, 2)
     sender.transport.written = []
     provider_s = [p for p in env.providers if p.name == sender.provider.name].pop()
@@ -543,7 +538,7 @@ def test_client_provider_sending():
     time, pop_packet = provider_s.process_queue.queue.pop()
     provider_s.read_packet(pop_packet)
 
-def test_provider_mix_sending():
+def test_provider_mix_sending(env):
     provider = random.choice(env.providers)
     provider.register_mixes(env.pubs_mixes)
     mixes = env.mixes
@@ -555,7 +550,7 @@ def test_provider_mix_sending():
     time, pop_packet = mixes[0].process_queue.queue.pop()
     mixes[0].read_packet(pop_packet)
 
-def test_provider_ping_received():
+def test_provider_ping_received(env):
     alice = env.clients[1]
     provider = [p for p in env.providers if p.name == alice.provider.name].pop()
 
@@ -567,7 +562,7 @@ def test_provider_ping_received():
 
     provider.read_packet(pkt)
 
-def test_mix_mix_sending():
+def test_mix_mix_sending(env):
     mix = env.mixes[0]
     mix.register_mixes(env.pubs_mixes)
     mix.register_providers(env.pubs_providers)
@@ -580,7 +575,7 @@ def test_mix_mix_sending():
     time, pop_packet = mix2.process_queue.queue.pop()
     mix2.read_packet(pop_packet)
 
-def test_generate_random_delay():
+def test_generate_random_delay(env):
     sec_params = SphinxParams(header_len=1024)
     client = env.clients[0]
     packer = SphinxPacker((sec_params, client.config_params))
