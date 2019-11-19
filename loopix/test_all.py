@@ -87,9 +87,10 @@ def env():
     providers, pubs_providers = loopix_providers(dbManager)
     clients, pubs_clients = loopix_clients(dbManager, pubs_providers, pubs_mixes)
 
-    return Env(mixes, pubs_mixes,
-               providers, pubs_providers,
-               clients, pubs_clients)
+    yield Env(mixes, pubs_mixes,
+              providers, pubs_providers,
+              clients, pubs_clients)
+    os.remove('test.db')
 
 def test_client_startProtocol(env):
     alice = env.clients[0]
